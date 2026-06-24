@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Посмотри моими глазами — симулятор восприятия интерфейса</title>
+<style>
+  :root {
+    --ink: #0A0A0A;
+    --paper: #F4EFE6;
+    --acid: #FFD60A;
+    --line: rgba(255,255,255,0.14);
+    --muted: rgba(244,239,230,0.55);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    padding: 0 0 80px;
+  }
+
+  /* ===== HEADER ===== */
+  .top {
+    max-width: 1180px; margin: 0 auto; padding: 48px 28px 24px;
+  }
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--acid); margin-bottom: 20px;
+  }
+  h1 {
+    font-family: 'Bebas Neue', 'Druk Cyr Wide', Impact, sans-serif;
+    font-weight: 400;
+    font-size: clamp(44px, 8vw, 104px);
+    line-height: 0.92; letter-spacing: -0.01em;
+    text-transform: uppercase; margin-bottom: 22px;
+  }
+  h1 .y { color: var(--acid); }
+  .lede {
+    font-size: clamp(15px, 2vw, 19px); max-width: 620px;
+    color: rgba(244,239,230,0.8);
+  }
+  .lede b { color: var(--paper); font-weight: 600; }
+
+  /* ===== LAYOUT ===== */
+  .stage {
+    max-width: 1180px; margin: 36px auto 0; padding: 0 28px;
+    display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 28px;
+    align-items: start;
+  }
+  @media (max-width: 880px) {
+    .stage { grid-template-columns: 1fr; }
+  }
+
+  /* ===== PRODUCT CARD (light, "real shop") ===== */
+  .viewport {
+    position: relative;
+    background: #FFFFFF; border-radius: 20px; overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+    transition: filter 0.45s ease;
+  }
+  .viewport-inner { padding: 22px; transition: all 0.4s ease; }
+  .card {
+    color: #1a1a1a; font-size: 15px;
+  }
+  .card-img {
+    position: relative; height: 230px; border-radius: 14px; overflow: hidden;
+    background: linear-gradient(135deg, #6db3f2 0%, #c2e59c 100%);
+    display: flex; align-items: flex-end; padding: 14px;
+  }
+  .badge {
+    position: absolute; top: 14px; left: 14px;
+    background: #E8453C; color: #fff; font-weight: 700; font-size: 13px;
+    padding: 6px 12px; border-radius: 8px;
+    transition: all 0.3s;
+  }
+  .badge.stock {
+    left: auto; right: 14px; background: #1FA363;
+  }
+  .swatches { display: flex; gap: 8px; }
+  .sw {
+    width: 30px; height: 30px; border-radius: 50%; border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  }
+  .card-body { padding: 18px 4px 4px; }
+  .brand { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #8a8a8a; margin-bottom: 6px; }
+  .pname { font-size: 21px; font-weight: 700; margin-bottom: 10px; line-height: 1.25; }
+  .price-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+  .price { font-size: 26px; font-weight: 800; }
+  .old { font-size: 16px; color: #aaa; text-decoration: line-through; }
+  .save { font-size: 13px; color: #E8453C; font-weight: 600; }
+  .rating { font-size: 13px; color: #f5a623; margin-bottom: 16px; }
+  .rating span { color: #888; }
+  .stock-line { font-size: 13px; color: #1FA363; margin-bottom: 16px; font-weight: 600; }
+  .buy {
+    display: block; width: 100%; border: none; cursor: pointer;
+    background: #2D6CDF; color: #fff; font-size: 16px; font-weight: 700;
+    padding: 15px; border-radius: 12px; transition: all 0.25s;
+    font-family: inherit;
+  }
+  .buy:hover { background: #2459b8; }
+  .buy:focus-visible { outline: 3px solid #0A0A0A; outline-offset: 2px; }
+  .helper { font-size: 12px; color: #999; text-align: center; margin-top: 10px; }
+
+  /* dyslexia letter spans */
+  .dys span { display: inline-block; transition: transform 0.2s; }
+
+  /* tremor target evasion */
+  .buy.evade { position: relative; }
+
+  /* overlay for tunnel vision */
+  .tunnel-overlay {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0;
+    transition: opacity 0.45s ease;
+    background: radial-gradient(circle at 50% 45%, transparent 80px, rgba(0,0,0,0.93) 180px);
+  }
+  .viewport.tunnel .tunnel-overlay { opacity: 1; }
+
+  /* cataract veil */
+  .veil {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0;
+    transition: opacity 0.45s ease;
+    background: rgba(222,196,120,0.32);
+    mix-blend-mode: multiply;
+  }
+  .viewport.cataract .veil { opacity: 1; }
+
+  /* ===== CONTROL PANEL ===== */
+  .panel { position: sticky; top: 24px; }
+  .panel-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .modes { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+  .mode {
+    display: flex; align-items: center; gap: 14px; cursor: pointer;
+    background: rgba(255,255,255,0.04); border: 1.5px solid var(--line);
+    border-radius: 13px; padding: 14px 16px; transition: all 0.2s;
+    color: var(--paper); font-size: 15px; text-align: left; width: 100%;
+    font-family: inherit;
+  }
+  .mode:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.3); }
+  .mode.active { background: var(--acid); border-color: var(--acid); color: var(--ink); }
+  .mode.active .mode-sub { color: rgba(10,10,10,0.65); }
+  .mode-ico {
+    width: 38px; height: 38px; border-radius: 9px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.08); font-size: 19px;
+  }
+  .mode.active .mode-ico { background: rgba(10,10,10,0.12); }
+  .mode-txt { flex: 1; }
+  .mode-name { font-weight: 600; line-height: 1.2; margin-bottom: 3px; }
+  .mode-sub { font-size: 12px; color: var(--muted); display: block; }
+
+  /* ===== DIAGNOSIS ===== */
+  .dx {
+    background: rgba(255,255,255,0.04); border: 1.5px solid var(--line);
+    border-radius: 16px; padding: 20px; min-height: 150px;
+  }
+  .dx-head {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--acid);
+    margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .dx-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; line-height: 1.3; }
+  .dx-body { font-size: 14px; color: rgba(244,239,230,0.78); line-height: 1.55; }
+  .dx-stat {
+    display: inline-block; font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: var(--acid); border: 1px solid rgba(255,214,10,0.4);
+    border-radius: 6px; padding: 3px 9px; margin-top: 14px;
+  }
+  .fix-btn {
+    margin-top: 16px; background: none; border: 1.5px solid var(--acid);
+    color: var(--acid); font-family: inherit; font-size: 14px; font-weight: 600;
+    padding: 11px 18px; border-radius: 10px; cursor: pointer; transition: all 0.2s;
+    width: 100%;
+  }
+  .fix-btn:hover { background: var(--acid); color: var(--ink); }
+  .fix-box {
+    margin-top: 14px; padding: 14px 16px; border-radius: 11px;
+    background: rgba(255,214,10,0.08); border-left: 3px solid var(--acid);
+    font-size: 13.5px; line-height: 1.55; color: rgba(244,239,230,0.9);
+    display: none;
+  }
+  .fix-box.show { display: block; }
+  .fix-box b { color: var(--acid); }
+
+  /* footer note */
+  .foot {
+    max-width: 1180px; margin: 48px auto 0; padding: 0 28px;
+    font-size: 13px; color: var(--muted); line-height: 1.6;
+  }
+  .foot a { color: var(--acid); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="top">
+    <div class="eyebrow">● Симулятор восприятия · Kikodoc.design</div>
+    <h1>Посмотри<br><span class="y">моими глазами</span></h1>
+    <p class="lede">Вот обычная карточка товара. Она кажется понятной — <b>потому что ты видишь её своими глазами.</b> Переключи состояние справа и попробуй купить этот рюкзак так, как его видит кто-то другой.</p>
+  </div>
+
+  <div class="stage">
+    <!-- PRODUCT CARD -->
+    <div class="viewport" id="viewport">
+      <div class="tunnel-overlay"></div>
+      <div class="veil"></div>
+      <div class="viewport-inner">
+        <div class="card">
+          <div class="card-img">
+            <div class="badge" id="badge-sale">−30%</div>
+            <div class="badge stock" id="badge-stock">В наличии</div>
+            <div class="swatches" id="swatches">
+              <div class="sw" style="background:#E8453C" title="красный"></div>
+              <div class="sw" style="background:#1FA363" title="зелёный"></div>
+              <div class="sw" style="background:#2D6CDF" title="синий"></div>
+              <div class="sw" style="background:#222" title="чёрный"></div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="brand">Tundra Gear</div>
+            <div class="pname" id="pname">Рюкзак Trailhead 28L</div>
+            <div class="price-row">
+              <span class="price">6 990 ₽</span>
+              <span class="old">9 990 ₽</span>
+              <span class="save" id="save">Выгода 3 000 ₽</span>
+            </div>
+            <div class="rating" id="rating">★★★★★ <span>4.8 · 213 отзывов</span></div>
+            <div class="stock-line" id="stockline">● Осталось 3 штуки — успейте</div>
+            <button class="buy" id="buybtn">Добавить в корзину</button>
+            <div class="helper">Бесплатная доставка от 5 000 ₽</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTROL PANEL -->
+    <div class="panel">
+      <div class="panel-label">Надень чужое восприятие</div>
+      <div class="modes" id="modes">
+        <button class="mode active" data-mode="normal">
+          <span class="mode-ico">👁</span>
+          <span class="mode-txt"><span class="mode-name">Обычное зрение</span><span class="mode-sub">как видишь ты</span></span>
+        </button>
+        <button class="mode" data-mode="deuter">
+          <span class="mode-ico">🎨</span>
+          <span class="mode-txt"><span class="mode-name">Дальтонизм</span><span class="mode-sub">не различает красный и зелёный · 8% мужчин</span></span>
+        </button>
+        <button class="mode" data-mode="cataract">
+          <span class="mode-ico">🌫</span>
+          <span class="mode-txt"><span class="mode-name">Катаракта</span><span class="mode-sub">размытие и жёлтая пелена · с возрастом у каждого</span></span>
+        </button>
+        <button class="mode" data-mode="tunnel">
+          <span class="mode-ico">🔭</span>
+          <span class="mode-txt"><span class="mode-name">Туннельное зрение</span><span class="mode-sub">глаукома · виден только центр</span></span>
+        </button>
+        <button class="mode" data-mode="dyslexia">
+          <span class="mode-ico">🔤</span>
+          <span class="mode-txt"><span class="mode-name">Дислексия</span><span class="mode-sub">буквы не стоят на месте · ~10% людей</span></span>
+        </button>
+        <button class="mode" data-mode="tremor">
+          <span class="mode-ico">🤲</span>
+          <span class="mode-txt"><span class="mode-name">Тремор</span><span class="mode-sub">трудно попасть по цели · Паркинсон, ДЦП, возраст</span></span>
+        </button>
+      </div>
+
+      <div class="dx">
+        <div class="dx-head"><span>▲</span> Диагноз интерфейса</div>
+        <div class="dx-title" id="dx-title">Всё работает</div>
+        <div class="dx-body" id="dx-body">Так карточку видишь ты. Кнопка заметна, цена ясна, статусы читаются. Теперь переключи состояние выше — и смотри, что останется.</div>
+        <div id="dx-stat-wrap"></div>
+        <button class="fix-btn" id="fixbtn" style="display:none">Как это лечится →</button>
+        <div class="fix-box" id="fixbox"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    Это не имитация «как оно на самом деле» до пикселя — точную картину даёт только живой человек. Это напоминание: <b style="color:var(--paper)">твой интерфейс понятен ровно настолько, насколько ты сам в него смотришь.</b> Самый дешёвый тест доступности — отдать макет тому, кто видит иначе. Бесплатно. Меняет всё.<br><br>
+    Сделано в Kikodoc.design · про доступность без сложных слов.
+  </div>
+
+<script>
+(function(){
+  var vp = document.getElementById('viewport');
+  var pname = document.getElementById('pname');
+  var buybtn = document.getElementById('buybtn');
+  var modes = document.getElementById('modes');
+  var dxTitle = document.getElementById('dx-title');
+  var dxBody = document.getElementById('dx-body');
+  var dxStatWrap = document.getElementById('dx-stat-wrap');
+  var fixbtn = document.getElementById('fixbtn');
+  var fixbox = document.getElementById('fixbox');
+
+  var ORIGINAL_NAME = pname.textContent;
+
+  // SVG colour-blindness filter (deuteranopia) injected once
+  var svgNS = "http://www.w3.org/2000/svg";
+  var filterSvg = document.createElementNS(svgNS, "svg");
+  filterSvg.setAttribute("style","position:absolute;width:0;height:0");
+  filterSvg.innerHTML = '<defs><filter id="deuter"><feColorMatrix type="matrix" values="0.625 0.375 0 0 0  0.7 0.3 0 0 0  0 0.3 0.7 0 0  0 0 0 1 0"/></filter></defs>';
+  document.body.appendChild(filterSvg);
+
+  var DX = {
+    normal: {
+      cls: '', title: 'Всё работает',
+      body: 'Так карточку видишь ты. Кнопка заметна, цена ясна, статусы читаются. Теперь переключи состояние выше — и смотри, что останется.',
+      stat: '', fix: ''
+    },
+    deuter: {
+      cls: 'deuter', title: 'Цвет перестал нести смысл',
+      body: 'Красный бейдж скидки и зелёный «в наличии» слились в одинаковый грязно-жёлтый. Выбор цвета рюкзака — красный и зелёный кружки — теперь неразличимы. Покупатель не понимает, что выбрал.',
+      stat: '8% мужчин · 1 из 12',
+      fix: 'Добавь <b>второй признак</b> к цвету. Бейдж скидки — со значком «−30%» и словом, а не просто красный. Кружки цветов — с подписью под каждым или галочкой на выбранном. <b>Правило:</b> цвет никогда не единственный носитель смысла (WCAG 1.4.1).'
+    },
+    cataract: {
+      cls: 'cataract', title: 'Контраст растворился',
+      body: 'Жёлтая пелена и размытие съели слабый контраст. Серая подпись «4.8 · 213 отзывов», бледная «выгода», тонкий текст под кнопкой — всё это для такого глаза почти исчезло. Осталась только крупная тёмная кнопка.',
+      stat: 'к 80 годам — у каждого второго',
+      fix: 'Подними <b>контраст текста</b> до 4.5:1 минимум (WCAG AA). Серый #999 на белом — это 2.8:1, провал. Сделай вторичный текст темнее и крупнее. Не полагайся на тонкие шрифты для важного — вес важнее размера.'
+    },
+    tunnel: {
+      cls: 'tunnel', title: 'Периферия пропала',
+      body: 'Виден только центр — туда, куда направлен взгляд. Бейдж скидки в углу, статус наличия, выбор цвета сверху — всё это вне поля зрения. Человек видит кнопку, но не контекст вокруг неё.',
+      stat: 'глаукома · 80 млн человек в мире',
+      fix: 'Не раскидывай <b>связанную информацию по углам</b>. Скидка, цена и кнопка должны жить рядом, в одной зрительной зоне. Важные статусы — близко к действию, а не на периферии. Группировка по Гештальту тут спасает буквально.'
+    },
+    dyslexia: {
+      cls: '', title: 'Текст не стоит на месте',
+      body: 'Буквы внутри слов подрагивают и переставляются — так текст ощущает человек с дислексией. Чем длиннее слово и плотнее набор, тем труднее. «Trailhead» прочитать тяжелее, чем короткое слово.',
+      stat: '~10% людей',
+      fix: 'Дай тексту <b>воздух</b>: межбуквенный и межстрочный интервал чуть шире обычного заметно помогают. Не пиши важное КАПСОМ и не растягивай в длинные строки. Простые короткие слова вместо длинных. Шрифты без засечек читаются легче.'
+    },
+    tremor: {
+      cls: '', title: 'В кнопку трудно попасть',
+      body: 'Попробуй нажать «Добавить в корзину». При треморе рук курсор не стоит на месте — мелкая или близкая к краю цель превращается в испытание. (Кнопка специально уклоняется — отпусти и попадёшь.)',
+      stat: 'Паркинсон, ДЦП, возраст, травма',
+      fix: 'Делай <b>цели крупными</b> — минимум 44×44px (Apple) или 48px (Google). Больше отступов вокруг кликабельного, чтобы не промахнуться в соседнее. Никаких крошечных крестиков и ссылок впритык. Время на действие — не ограничивай.'
+    }
+  };
+
+  var current = 'normal';
+
+  function wrapLetters(){
+    var text = ORIGINAL_NAME;
+    pname.classList.add('dys');
+    pname.innerHTML = '';
+    text.split('').forEach(function(ch){
+      var s = document.createElement('span');
+      s.textContent = ch;
+      pname.appendChild(s);
+    });
+  }
+  function unwrapLetters(){
+    pname.classList.remove('dys');
+    pname.textContent = ORIGINAL_NAME;
+    if (dysTimer) { clearInterval(dysTimer); dysTimer = null; }
+  }
+  var dysTimer = null;
+  function startDyslexia(){
+    wrapLetters();
+    var spans = pname.querySelectorAll('span');
+    dysTimer = setInterval(function(){
+      spans.forEach(function(s){
+        if (s.textContent === ' ') return;
+        var dx = (Math.random()-0.5)*5;
+        var dy = (Math.random()-0.5)*5;
+        var rot = (Math.random()-0.5)*16;
+        s.style.transform = 'translate('+dx+'px,'+dy+'px) rotate('+rot+'deg)';
+      });
+    }, 320);
+  }
+
+  // tremor: evade cursor
+  function tremorMove(e){
+    var r = buybtn.getBoundingClientRect();
+    var cx = r.left + r.width/2, cy = r.top + r.height/2;
+    var dist = Math.hypot(e.clientX - cx, e.clientY - cy);
+    if (dist < 120){
+      var ang = Math.atan2(cy - e.clientY, cx - e.clientX);
+      var push = (120 - dist) * 0.7;
+      buybtn.style.transform = 'translate('+Math.cos(ang)*push+'px,'+Math.sin(ang)*push+'px)';
+    } else {
+      buybtn.style.transform = 'translate(0,0)';
+    }
+  }
+  function enableTremor(){ window.addEventListener('mousemove', tremorMove); }
+  function disableTremor(){
+    window.removeEventListener('mousemove', tremorMove);
+    buybtn.style.transform = 'translate(0,0)';
+  }
+
+  function applyFilter(mode){
+    // reset visual filters
+    vp.style.filter = '';
+    vp.classList.remove('cataract','tunnel');
+    if (mode === 'deuter') vp.style.filter = 'url(#deuter)';
+    if (mode === 'cataract') { vp.style.filter = 'blur(1.6px) saturate(0.7)'; vp.classList.add('cataract'); }
+    if (mode === 'tunnel') vp.classList.add('tunnel');
+  }
+
+  function setMode(mode){
+    if (mode === current) return;
+    // teardown previous
+    unwrapLetters();
+    disableTremor();
+    current = mode;
+
+    applyFilter(mode);
+    if (mode === 'dyslexia') startDyslexia();
+    if (mode === 'tremor') enableTremor();
+
+    // diagnosis text
+    var d = DX[mode];
+    dxTitle.textContent = d.title;
+    dxBody.textContent = d.body;
+    dxStatWrap.innerHTML = d.stat ? '<div class="dx-stat">'+d.stat+'</div>' : '';
+    fixbox.classList.remove('show');
+    if (d.fix){
+      fixbtn.style.display = 'block';
+      fixbtn.onclick = function(){
+        fixbox.innerHTML = d.fix;
+        fixbox.classList.toggle('show');
+        fixbtn.textContent = fixbox.classList.contains('show') ? 'Свернуть' : 'Как это лечится →';
+      };
+      fixbtn.textContent = 'Как это лечится →';
+    } else {
+      fixbtn.style.display = 'none';
+    }
+  }
+
+  modes.addEventListener('click', function(e){
+    var btn = e.target.closest('.mode');
+    if (!btn) return;
+    modes.querySelectorAll('.mode').forEach(function(m){ m.classList.remove('active'); });
+    btn.classList.add('active');
+    setMode(btn.dataset.mode);
+  });
+
+  // buy button playful feedback
+  buybtn.addEventListener('click', function(){
+    if (current === 'tremor') return; // hard to click on purpose
+    var old = buybtn.textContent;
+    buybtn.textContent = '✓ В корзине';
+    setTimeout(function(){ buybtn.textContent = old; }, 1400);
+  });
+})();
+</script>
+</body>
+</html>
